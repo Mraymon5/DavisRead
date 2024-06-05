@@ -10,3 +10,9 @@ TBD on the python script. I think it's functional, but I don't yet know the best
 
 # Getting Started:
 
+```
+git clone https://github.com/Mraymon5/DavisRead.git
+conda create --name DavisRead python=3.11
+conda activate DavisRead
+pip install -r requirements.txt
+```
