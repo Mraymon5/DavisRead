@@ -10,7 +10,7 @@ Using the R file is fairly straightforward; in a separate analysis script, use `
 To download the code and set it up, open a terminal and run the following:
 ```
 git clone https://github.com/Mraymon5/DavisRead.git #Download the repository
-cd <path/to/DavisRead>/requirements #Move your working directory to the repository
+cd <path/to/DavisRead> #Move your working directory to the repository
 conda create --name DavisRead python=3.11 #Make a new environment for the repository
 conda activate DavisRead #Activate the environment
 pip install -r requirements.txt #Install dependencies
