@@ -2,12 +2,13 @@
 import os
 import pandas as pd
 import numpy as np
+import time
 import warnings
 import matplotlib.pyplot as plt
 
 #%%
 def Davis_Read(folder=None, #Path to a folder containing the .ms8.txt files to be processed
-               keyword=".MS8.txt", #A search term to identify files in that folder
+               keyword=".txt", #A search term to identify files in that folder
                file=None, #A specific single file to be processed
                intervalCutoff=50, #The minimum ILI to be considered a lick; anything less is treated as double-contact
                burstCutoff=500, #The maximum ILI allowed within a single burst; anything greater is treated as a pause
@@ -18,6 +19,7 @@ def Davis_Read(folder=None, #Path to a folder containing the .ms8.txt files to b
                plot_raw_interval=False, #plot a histogram of raw ILIs
                plot_interval=False, #plot a histogram of filtered ILIs /not implemented
                plot_cumulative=False, #plot cumulative licks over the session /not implemented
+               timer=False,
                legacy_file=None): #the path to a legacy file containing the ILI info extracted from a .ms8 file, requires that the .ms8 file be supplied to 'file' arguement. You probably don't need this.
     """ 
     Davis_Read is used to process .ms8.txt files, returning data in csv form, and includes some data cleaning and microsctructure analysis steps.
@@ -55,47 +57,51 @@ def Davis_Read(folder=None, #Path to a folder containing the .ms8.txt files to b
     -------
     pass
     """
+    #%%Debugging settings
     if 0:
-        folder="/home/ramartin/Documents/Code/Python/Davis/Test_Data"
-        keyword=".MS8.txt";
-        file=None;
+        folder="/home/user/dataFolder/"
+        keyword=".txt";
+        #file=None;
         intervalCutoff=50;
         burstCutoff=500;
         minBurstLength=1;
-        output_folder="/home/ramartin/Documents/Code/Python/Davis/Test_Result";
-        ili_folder=None;
+        output_folder="/home/user/dataFolder/Output/";
+        ili_folder="/home/user/dataFolder/Output/";
         title=None;
-        plot_raw_interval=False;
+        plot_raw_interval=True;
         plot_interval=False;
         plot_cumulative=False;
+        timer=False;
         legacy_file=None;
-    
+    #%%Function contents
+    if timer:
+        start_time = time.time()
+
     if folder is None and file is None:
-        raise ValueError("You must specify a 'file' or a 'folder'")
-        
+        raise ValueError("You must specify a file or a folder")
+
     if legacy_file is not None and file is None:
         raise ValueError("If processing a legacy file, 'file' must be a corrosponding .ms8")
-    
+
     if folder:
         file_names = [os.path.join(folder, f) for f in os.listdir(folder) if keyword in f]
-        if len(file_names)==0:
-                raise ValueError("No files in 'folder' match 'keyword'")
         directory = pd.DataFrame({'Files': [f for f in os.listdir(folder) if keyword in f], 'Date': None, 'Animal': None})
-    elif file:
+    if file:
         file_names = [file]
         directory = pd.DataFrame({'Files': [os.path.basename(file)], 'Date': None, 'Animal': None})
         if folder:
             warnings.warn("File overwrites Folder")
     
-    directory['Files'] = directory['Files'].str.replace(".MS8.txt", "", regex=False)
+    directory.at[:,'Files'] = [directory.at[fileN,'Files'].rsplit(".", 2)[0] for fileN in range(len(directory))]
     
     for i in range(len(directory)):
         directory.at[i, 'Date'] = f"{directory.at[i, 'Files'][:2]}/{directory.at[i, 'Files'][2:4]}"
         directory.at[i, 'Animal'] = directory.at[i, 'Files'][4:20]
 
     returnedOutput = {}
-    
+
     for fileN, fileIs in enumerate(file_names):#fileN = 0;fileIs = file_names[fileN]
+        print("Processing "  + str(fileN+1) + "/" + str(len(file_names)) + ": " + fileIs)
         lick_export = []
 
         version = pd.read_csv(fileIs, header=None, sep=None, engine='python', nrows=1)
@@ -112,12 +118,31 @@ def Davis_Read(folder=None, #Path to a folder containing the .ms8.txt files to b
             meta_data = pd.read_csv(fileIs, skiprows=7, nrows=int(meta.iat[1, 0]), sep=",", skipinitialspace=1)
             licks_dav = pd.read_csv(fileIs, skiprows=(8 + int(meta.iat[1, 0])), sep=",", header=None, index_col=0).T;
         else:
-            meta = pd.read_csv(fileIs, skiprows=7, nrows=2, header=None, index_col=0, sep=",", skipinitialspace=1)
-            meta_data = pd.read_csv(fileIs, skiprows=9, nrows=int(meta.iat[1, 0]), sep=",", skipinitialspace=1)
-            licks_dav = pd.DataFrame(index=range(meta.iat[1, 0]), columns=range(max(meta_data['LICKS'])-1))
-            for trialN in range(meta.iat[1, 0]):
-                licks_dav.iloc[trialN,range(meta_data.loc[trialN,'LICKS']-1)] = pd.read_csv(fileIs, skiprows=(10 + int(meta.iat[1, 0]) + (trialN+1)), sep=",", header=None, index_col=0, skipinitialspace=1,nrows=1);
-        
+            #meta = pd.read_csv(fileIs, skiprows=7, nrows=2, header=None, index_col=0, sep=",", skipinitialspace=1)
+            #meta_data = pd.read_csv(fileIs, skiprows=9, nrows=int(meta.iat[1, 0]), sep=",", skipinitialspace=1)
+            #licks_dav = pd.DataFrame(index=range(meta.iat[1, 0]), columns=range(max(meta_data['LICKS'])-1))
+            #for trialN in range(meta.iat[1, 0]):
+            #    licks_dav.iloc[trialN,range(meta_data.loc[trialN,'LICKS']-1)] = pd.read_csv(fileIs, skiprows=(10 + int(meta.iat[1, 0]) + (trialN+1)), sep=",", header=None, index_col=0, skipinitialspace=1,nrows=1);
+            with open(fileIs, 'r') as fp:
+                # read all lines using readline()
+                lines = fp.readlines()
+                
+                for rowN in range(len(lines)):
+                   if lines[rowN].find("Max Number") != -1: 
+                       PresLine = rowN 
+                   if lines[rowN].find("Max Wait") != -1: 
+                       WaitLine = rowN
+                   if lines[rowN].find("PRESENTATION,TUBE") != -1: 
+                       TrialLine = rowN
+                meta1 = pd.read_csv(fileIs, skiprows=WaitLine, nrows=1, header=None, index_col=0, sep=",", skipinitialspace=1)
+                meta2 = pd.read_csv(fileIs, skiprows=PresLine, nrows=1, header=None, index_col=0, sep=",", skipinitialspace=1)
+                meta = pd.DataFrame(np.append(meta1,meta2))
+                del meta1; del meta2
+                meta_data = pd.read_csv(fileIs, skiprows=TrialLine, nrows=int(meta.iat[1,0]), sep=",", skipinitialspace=1)
+                licks_dav = pd.DataFrame(index=range(meta.iat[1,0]), columns=range(max(meta_data['LICKS'])-1))
+                for trialN in range(meta.iat[1,0]):
+                    licks_dav.iloc[trialN,range(meta_data.loc[trialN,'LICKS']-1)] = pd.read_csv(fileIs, skiprows=(11 + int(meta.iat[1,0]) + (trialN+1)), sep=",", header=None, index_col=0, skipinitialspace=1,nrows=1);
+                
         licks_r = pd.DataFrame(licks_dav).T.reset_index(drop=True)
         licks_r.columns = range(licks_r.shape[1])
         
@@ -150,10 +175,10 @@ def Davis_Read(folder=None, #Path to a folder containing the .ms8.txt files to b
             lick_data['DoubleContact'] = 0
             lick_data = pd.concat([pd.DataFrame([[0]*8], columns=lick_data.columns), lick_data], ignore_index=1)
             
-            #This Loop Filters licks for double contacts, and keeps track of bursts      
+            #This Loop Filters licks for double contacts, and keeps track of bursts
             for lickN in range(1, len(lick_data)):
                 lick_data.loc[lickN,'RawInterval'] = lick_data.loc[lickN,'RawTime']-lick_data.loc[lickN-1,'RawTime']
-                if lick_data.at[lickN, 'RawTime'] - lick_data.at[lickN-1, 'FilteredTime'] >= intervalCutoff:
+                if (lick_data.at[lickN, 'RawTime'] - lick_data.at[lickN-1, 'FilteredTime'] > intervalCutoff) or lickN == 1:
                     lick_data.at[lickN, 'FilteredTime'] = lick_data.at[lickN, 'RawTime']
                     lick_data.loc[range(lickN,len(lick_data)), 'LickTotal'] += 1
                     if lick_data.at[lickN, 'FilteredTime'] - lick_data.at[lickN-1, 'FilteredTime'] > burstCutoff or lickN == 1:
@@ -174,10 +199,10 @@ def Davis_Read(folder=None, #Path to a folder containing the .ms8.txt files to b
             burst_data = pd.DataFrame(  {'Licks': [None]*NBursts, 'Duration': [None]*NBursts, 'Start': [None]*NBursts, 'Stop': [None]*NBursts})            
             for BurstN in range(NBursts):
                 BurstWhere = np.where(lick_data['BurstN'] == BurstN+1)
-                burst_data['Licks'][BurstN] = lick_data['BurstCount'][np.array(BurstWhere).max()]
-                burst_data['Start'][BurstN] = lick_data['FilteredTime'][np.array(BurstWhere).min()]
-                burst_data['Stop'][BurstN] = lick_data['FilteredTime'][np.array(BurstWhere).max()]
-                burst_data['Duration'][BurstN] = burst_data['Stop'][BurstN] - burst_data['Start'][BurstN]
+                burst_data.loc[BurstN,'Licks'] = lick_data.loc[np.array(BurstWhere).max(),'BurstCount']
+                burst_data.loc[BurstN,'Start'] = lick_data.loc[np.array(BurstWhere).min(),'FilteredTime']
+                burst_data.loc[BurstN,'Stop'] = lick_data.loc[np.array(BurstWhere).max(),'FilteredTime']
+                burst_data.loc[BurstN,'Duration'] = burst_data.loc[BurstN,'Stop'] - burst_data.loc[BurstN,'Start']
             burst_data = burst_data.loc[burst_data['Licks'] >= minBurstLength,:]
 
             #Summarize Pause data
@@ -185,14 +210,14 @@ def Davis_Read(folder=None, #Path to a folder containing the .ms8.txt files to b
             pause_data = pd.DataFrame(  {'Duration': [None]*NPauses, 'Start': [None]*NPauses, 'Stop': [None]*NPauses})            
             for BurstN in range(NPauses):
                 BurstWhere = np.where(lick_data['BurstN'] == BurstN+1)
-                pause_data['Start'][BurstN] = lick_data['FilteredTime'][np.array(BurstWhere).max()]
-                pause_data['Stop'][BurstN] = lick_data['FilteredTime'][np.array(BurstWhere).max()+1]
-                pause_data['Duration'][BurstN] = pause_data['Stop'][BurstN] - pause_data['Start'][BurstN]
+                pause_data.loc[BurstN,'Start'] = lick_data.loc[np.array(BurstWhere).max(),'FilteredTime']
+                pause_data.loc[BurstN,'Stop'] = lick_data.loc[np.array(BurstWhere).max()+1,'FilteredTime']
+                pause_data.loc[BurstN,'Duration'] = pause_data.loc[BurstN,'Stop'] - pause_data.loc[BurstN,'Start']
 
             #Compute MPI and Efficiency, and deal with no-lick trials
             if lick_data['LickTotal'].max() > 0:
-                MPI = lick_data['FilteredInterval'][(lick_data['FilteredInterval'] >= intervalCutoff) & (lick_data['FilteredInterval'] <= 160)].mean()
-                Efficiency = len(lick_data['FilteredInterval'][(lick_data['FilteredInterval'] >= intervalCutoff) & (lick_data['FilteredInterval'] <= 160)]) / (lick_data['LickTotal'].max())
+                MPI = lick_data['FilteredInterval'][(lick_data['FilteredInterval'] > intervalCutoff) & (lick_data['FilteredInterval'] <= 160)].mean()
+                Efficiency = len(lick_data['FilteredInterval'][(lick_data['FilteredInterval'] > intervalCutoff) & (lick_data['FilteredInterval'] <= 160)]) / (lick_data['LickTotal'].max())
                 BurstLatency = burst_data['Start'][0]
                 DoubleContacts = lick_data['DoubleContact'].sum()
 
@@ -200,7 +225,7 @@ def Davis_Read(folder=None, #Path to a folder containing the .ms8.txt files to b
                 MPI = np.nan; Efficiency = np.nan;BurstLatency = np.nan; DoubleContacts = 0
             
             
-            #%% Generate Output
+            # Generate Output
             output = pd.DataFrame({
                 'Trial': [trialN+1],#in brackets to fool pandas into thinking it isn't all scalars. Once is enough, I guess!
                 'Solution': trial_lab,
@@ -223,7 +248,7 @@ def Davis_Read(folder=None, #Path to a folder containing the .ms8.txt files to b
                 'File': fileIs}
                 )
             
-            #%% Save Output            
+            # Save Output            
             lick_export.append(output) #Tag this trial's data onto the existing data
 
         lick_export_df = pd.concat(lick_export, ignore_index=True)
@@ -243,26 +268,27 @@ def Davis_Read(folder=None, #Path to a folder containing the .ms8.txt files to b
             output_path = os.path.join(ili_folder, f"{directory['Files'][fileN]}_ILI_export.csv")
             licks_dav.to_csv(output_path, index=False, header=0)
             print(f"Data exported to {output_path}")
-
-        returnedOutput[directory['Files'][fileN]] = lick_export_df
         
-        #%%Plotting
+        returnedOutput[directory['Files'][fileN]] = lick_export_df
+
+        #Plotting
         if plot_raw_interval:
             all_ILI = licks_dav.values.flatten()
+            all_ILI = np.array([x for x in all_ILI if x != 'nan'])
             plt.hist(all_ILI, bins=50, range=(0, 500), edgecolor='black')
             plt.xlabel('Interval (mS)')
             plt.ylabel('Frequency')
             plt.title('Primary Distribution of Unfiltered ILIs')
             plt.xlim(0, 500)
 
-        
-        
-        
     #%% Export
     if file is None:
         return returnedOutput
     else:
         return lick_export_df
 
+    if timer:
+        elapsed_time = time.time() - start_time
+        print(f"Execution time: {elapsed_time:.2f} seconds")
 #%% Example usage
 #output = Davis_Read(folder="/home/ramartin/Documents/Code/Python/Davis/Test_Data", output_folder="/home/ramartin/Documents/Code/Python/Davis/Test_Result", ili_folder="/home/ramartin/Documents/Code/Python/Davis/Test_Result")
