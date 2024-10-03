@@ -5,6 +5,8 @@ import numpy as np
 import time
 import warnings
 import matplotlib.pyplot as plt
+import easygui
+import argparse
 
 #%%
 def Davis_Read(folder=None, #Path to a folder containing the .ms8.txt files to be processed
@@ -57,7 +59,7 @@ def Davis_Read(folder=None, #Path to a folder containing the .ms8.txt files to b
     -------
     pass
     """
-    #%%Debugging settings
+    #Debugging settings
     if 0:
         folder="/home/user/dataFolder/"
         keyword=".txt";
@@ -73,12 +75,15 @@ def Davis_Read(folder=None, #Path to a folder containing the .ms8.txt files to b
         plot_cumulative=False;
         timer=False;
         legacy_file=None;
-    #%%Function contents
+
+    #Function contents
     if timer:
         start_time = time.time()
-
+        
     if folder is None and file is None:
-        raise ValueError("You must specify a file or a folder")
+        folder = easygui.diropenbox("Select a Data Directory")
+        if folder is None:
+            raise ValueError("You must specify a file or a folder")
 
     if legacy_file is not None and file is None:
         raise ValueError("If processing a legacy file, 'file' must be a corrosponding .ms8")
@@ -281,7 +286,7 @@ def Davis_Read(folder=None, #Path to a folder containing the .ms8.txt files to b
             plt.title('Primary Distribution of Unfiltered ILIs')
             plt.xlim(0, 500)
 
-    #%% Export
+    # Export
     if file is None:
         return returnedOutput
     else:
@@ -290,5 +295,15 @@ def Davis_Read(folder=None, #Path to a folder containing the .ms8.txt files to b
     if timer:
         elapsed_time = time.time() - start_time
         print(f"Execution time: {elapsed_time:.2f} seconds")
+
+#%% Function call for running the script from Terminal
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description = 'Script for processing .ms8 files from the Davis Rig')
+    parser.add_argument('Folder', nargs='?', help = 'Directory containing data files', default=None)
+    parser.add_argument('--File', '-f', help = 'Individual .ms8 file to run', default = None)
+    parser.add_argument('--OutputFolder', '-o', help = 'Directory to save output', default = None)
+    args = parser.parse_args()
+    Davis_Read(folder=args.Folder, file=args.File, output_folder=args.OutputFolder)
+ 
 #%% Example usage
 #output = Davis_Read(folder="/home/ramartin/Documents/Code/Python/Davis/Test_Data", output_folder="/home/ramartin/Documents/Code/Python/Davis/Test_Result", ili_folder="/home/ramartin/Documents/Code/Python/Davis/Test_Result")
