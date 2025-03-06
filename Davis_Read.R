@@ -18,7 +18,7 @@ Davis_Read <- function(Folder = NA,  #sets the folder containing the data
 if(0){ #For debugging
   Folder = NA;  #sets the folder containing the data
   KeyWord = ".txt"; #sets a search term for identifying files
-  File = "/home/ramartin/Documents/Code/Python/Davis/Test_Data/0719GC35.MS8.txt"; #A file path to a specific single file to be run
+  File = "~/Documents/MAR_Data/MR07/BAT/20241223/20241223MR07.txt"; #A file path to a specific single file to be run
   Cutoff = 50; #minimum acceptable ILI
   OutputFolder = F; #sets a folder to save .csv of output
   ILIFolder = F; #sets a folder to save a .csv of ILIs
@@ -54,12 +54,21 @@ if (!is.na(File)){
   if (!is.na(Folder)){warning("File overwrites Folder")}
 }
 
-Directory$Files <- sub(pattern = ".MS8.txt", replacement = "", x = Directory$Files) #trims the extension(s) from the directory list
-
-for (i in 1:length(Directory$Files)) { #This loop parses the date and animal ID from the file name
-  Directory$Date[i] <- paste(substr(x = Directory$Files[i], start = 1, stop = 2), substr(x = Directory$Files[i], start = 3, stop = 4),sep = "/")
-  Directory$Animal[i] <- substr(x = Directory$Files[i], start = 5, stop = 20)
+isMS8 = grepl(x = Directory$Files, pattern = ".MS8")
+if (isMS8){
+  Directory$Files <- sub(pattern = ".MS8.txt", replacement = "", x = Directory$Files) #trims the extension(s) from the directory list
+  for (i in 1:length(Directory$Files)) { #This loop parses the date and animal ID from the file name
+    Directory$Date[i] <- paste(substr(x = Directory$Files[i], start = 1, stop = 2), substr(x = Directory$Files[i], start = 3, stop = 4),sep = "/")
+    Directory$Animal[i] <- substr(x = Directory$Files[i], start = 5, stop = 20)
+  }
+} else {
+  Directory$Files <- sub(pattern = ".txt", replacement = "", x = Directory$Files) #trims the extension(s) from the directory list
+  for (i in 1:length(Directory$Files)) { # i = 1 #This loop parses the date and animal ID from the file name
+    Directory$Date[i] <- paste(substr(x = Directory$Files[i], start = 5, stop = 6), substr(x = Directory$Files[i], start = 7, stop = 8),substr(x = Directory$Files[i], start = 1, stop = 4),sep = "/")
+    Directory$Animal[i] <- substr(x = Directory$Files[i], start = 9, stop = 200)
+  }
 }
+
 
 for (file_N in 1:length(FileNames)) { #Start whole folder loop
   
@@ -71,7 +80,8 @@ for (file_N in 1:length(FileNames)) { #Start whole folder loop
   
   
 #Data Import====
-Version <- read.csv(file = D, header = F, sep = NULL, as.is = T, nrows = 1) #check the first line of the MS8 output to see if it's the old version or the new(er) version
+VersionAt = read_lines(file = D) %>% grepl(pattern = "Version") %>% which
+Version <- read.csv(file = D, skip = VersionAt-1, header = F, sep = ",", as.is = T, nrows = 1) #check the first line of the MS8 output to see if it's the old version or the new(er) version
 
 if (!is.null(StJohnFile)){
   Temp_Lat <- read.table(file = StJohnFile, nrows = 1, skip = 3, sep = " ", strip.white = T) %>% t
@@ -80,16 +90,17 @@ if (!is.null(StJohnFile)){
   Meta <- read.table(file = File, skip = 5, nrows = 2, sep = ",", strip.white = T, row.names = 1)
   Meta_Data <- read.table(file = File, skip = 8, nrows = Meta[2,1], sep = ",", strip.white = T, col.names = c("PRES","TUBE","CONCENTRATION","SOLUTION",  "IPI"  , "LENGTH", "LICKS"))
   Meta_Data$Latency = Temp_Lat
-} else
-if (Version[1,1] == 1.015) { #See if this is a new or old davis rig file
-  Meta <- read.csv(file = D, sep = ",", as.is = T, header = F, row.names = 1, skip = 4, nrows = 2) #in theory, capture the number of trials and the trial time limit
-  Meta_Data <- read.csv(file = D, skip = 7, nrows = max(Meta[2,1])) #in theory, capture the trial metadata
-  Licks_Dav <- read.csv(file = D, skip = (8 + Meta[2,1]), sep = ",", fill = T, header = F, row.names = 1, flush = T, allowEscapes = T, col.names = c(1:max(Meta_Data$LICKS))) #read in the rest of the lick files
 } else {
-  Meta <- read.csv(file = D, sep = ",", header = F, row.names = 1, skip = 7, nrows = 2)
-  Meta_Data <- read.csv(file = D, skip = 9, nrows = Meta[2,1])
-  Licks_Dav <- (read.csv(file = D, skip = (10 + Meta[2,1]), sep = ",", fill = T, header = F, row.names = 1, flush = T, allowEscapes = T, col.names = c(1:max(Meta_Data$LICKS))))
+  MetaAt = read_lines(file = D) %>% grepl(pattern = "Max Wait") %>% which
+  Meta <- read.csv(file = D, sep = ",", as.is = T, header = F, row.names = 1, skip = MetaAt-1, nrows = 3) #in theory, capture the number of trials and the trial time limit
+  Meta = Meta[c(1,3),] %>% data.frame
+  DataAt = read_lines(file = D) %>% grepl(pattern = "PRESENTATION,TUBE") %>% which
+  BetterMeta = read.csv(file = D, nrows = (DataAt-2), skip = 1, row.names = 1, header = F) %>% t
+  Meta_Data <- read.csv(file = D, skip = DataAt-1, nrows = Meta[2,1])
+  Licks_Dav <- (read.csv(file = D, skip = (DataAt + Meta[2,1]), sep = ",", fill = T, header = F, row.names = 1, flush = T, allowEscapes = T, col.names = c(1:max(Meta_Data$LICKS))))
 }
+
+
 Licks_R <- data.frame(t(x = Licks_Dav), row.names = c(1:ncol(Licks_Dav))) #transpose the licks and change the row names back to regular
 
 for (i in 1:ncol(Licks_R)) { #turn the ILIs into sequential timecodes, where each represents the time from trial start for that lick
@@ -109,7 +120,7 @@ Licks_R <- rbind(Meta_Data$Latency, Licks_R) #append latencies to the lick time 
 Licks_R[1,][Licks_R[1,] == (Meta[1,1] * 1000)] <- NA #if the latency is the trial time limit, store as NA
 
 #Microstructure Stuff====
-for (trial_N in 1:ncol(Licks_R)) { #start per file loop
+for (trial_N in 1:ncol(Licks_R)) {#trial_N = 1 #start per trial loop
   
   TrialLab <- paste(Meta_Data$CONCENTRATION[trial_N], Meta_Data$SOLUTION[trial_N], sep = " ") #title of the trial
   
