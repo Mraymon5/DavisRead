@@ -12,13 +12,13 @@ Davis_Read <- function(Folder = NA,  #sets the folder containing the data
                        PlotInterval = F, #plot filtered interval hist.
                        PlotCumulative = F, #plot licks over time
                        Timer = F,
-                       StJohnFile = NULL #a .txt file provided by Steven St John, requires that .ms8 be supplied to File
+                       LegacyFile = NULL #a .txt file from old binary versions, requires that .ms8 be supplied to File
                        ){   #reports runtime
 
 if(0){ #For debugging
   Folder = NA;  #sets the folder containing the data
   KeyWord = ".txt"; #sets a search term for identifying files
-  File = "~/Documents/MAR_Data/MR07/BAT/20241223/20241223MR07.txt"; #A file path to a specific single file to be run
+  File = "~/Path/To/File.txt"; #A file path to a specific single file to be run
   Cutoff = 50; #minimum acceptable ILI
   OutputFolder = F; #sets a folder to save .csv of output
   ILIFolder = F; #sets a folder to save a .csv of ILIs
@@ -27,7 +27,7 @@ if(0){ #For debugging
   PlotInterval = F; #plot filtered interval hist.
   PlotCumulative = F; #plot licks over time
   Timer = F;
-  StJohnFile = NULL #a .txt file provided by Steven St John, requires that .ms8 be supplied to File
+  LegacyFile = NULL #a .txt file from old binary versions, requires that .ms8 be supplied to File
 }
   
 require(tidyverse)
@@ -83,10 +83,10 @@ for (file_N in 1:length(FileNames)) { #Start whole folder loop
 VersionAt = read_lines(file = D) %>% grepl(pattern = "Version") %>% which
 Version <- read.csv(file = D, skip = VersionAt-1, header = F, sep = ",", as.is = T, nrows = 1) #check the first line of the MS8 output to see if it's the old version or the new(er) version
 
-if (!is.null(StJohnFile)){
-  Temp_Lat <- read.table(file = StJohnFile, nrows = 1, skip = 3, sep = " ", strip.white = T) %>% t
+if (!is.null(LegacyFile)){
+  Temp_Lat <- read.table(file = LegacyFile, nrows = 1, skip = 3, sep = " ", strip.white = T) %>% t
   if (Temp_Lat[6] == "s") Temp_Lat = as.numeric(Temp_Lat[5]) * 1000 else Temp_Lat = as.numeric(Temp_Lat[5])
-  Licks_Dav <- read.table(file = StJohnFile, skip = 9) %>% t()
+  Licks_Dav <- read.table(file = LegacyFile, skip = 9) %>% t()
   Meta <- read.table(file = File, skip = 5, nrows = 2, sep = ",", strip.white = T, row.names = 1)
   Meta_Data <- read.table(file = File, skip = 8, nrows = Meta[2,1], sep = ",", strip.white = T, col.names = c("PRES","TUBE","CONCENTRATION","SOLUTION",  "IPI"  , "LENGTH", "LICKS"))
   Meta_Data$Latency = Temp_Lat
